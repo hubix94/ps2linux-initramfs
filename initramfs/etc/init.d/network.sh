@@ -99,23 +99,30 @@ done
 [ -z "$DB" ] && [ -x /usr/bin/dropbearmulti ] && DB="/usr/bin/dropbearmulti dropbear"
 
 # Host key on the storage device.  The root filesystem is a tmpfs, so a key
-# generated here would be new on every boot and every client would complain
-# that the host had changed.  Keep one on the storage device instead and copy
-# it in.  ed25519 only: RSA key generation takes minutes on a 294 MHz R5900,
-# and nothing here needs it.
+# generated here would be new on every boot and every client would refuse to
+# connect until its known_hosts was edited.  Keep one on the storage device
+# instead and copy it in.
 #
-# The key ends up on a FAT filesystem, so it carries no permissions and
-# anyone holding the storage device can read it.  With root logging in over
-# SSH without a password, which is how this console is set up, that changes
+# Generating it must never come before starting the server.  Key generation
+# needs entropy, the pool is not seeded this early in the boot - crng init
+# lands around 26 s - and a blocked dropbearkey would mean no SSH at all,
+# which is exactly how the first version of this failed.  So: start dropbear
+# with whatever key exists, and if there is none, make one afterwards, in the
+# background, for the next boot.
+#
+# The key ends up on a FAT filesystem, so it carries no permissions and anyone
+# holding the storage device can read it.  With root logging in over SSH
+# without a password, which is how this console is set up, that changes
 # nothing.
 KEYDIR=/mnt/ssh
+STOREDKEY="$KEYDIR/dropbear_ed25519_host_key"
 HOSTKEY=/etc/dropbear/dropbear_ed25519_host_key
 
 keygen() {
 	if command -v dropbearkey > /dev/null 2>&1; then
-		dropbearkey -t ed25519 -f "$1"
+		timeout 120 dropbearkey -t ed25519 -f "$1"
 	elif [ -x /usr/bin/dropbearmulti ]; then
-		/usr/bin/dropbearmulti dropbearkey -t ed25519 -f "$1"
+		timeout 120 /usr/bin/dropbearmulti dropbearkey -t ed25519 -f "$1"
 	else
 		return 1
 	fi
@@ -123,22 +130,9 @@ keygen() {
 
 mkdir -p /etc/dropbear
 
-if [ -f /tmp/usb-ready ]; then
-	mkdir -p "$KEYDIR" 2>/dev/null
-	if [ ! -s "$KEYDIR/dropbear_ed25519_host_key" ]; then
-		if keygen "$KEYDIR/dropbear_ed25519_host_key" >> "$LOG" 2>&1; then
-			log "generated a new host key on $KEYDIR"
-		else
-			log "no way to generate a host key - dropbear will make its own"
-		fi
-		sync
-	fi
-	if [ -s "$KEYDIR/dropbear_ed25519_host_key" ]; then
-		cp "$KEYDIR/dropbear_ed25519_host_key" "$HOSTKEY"
-		log "host key taken from $KEYDIR"
-	fi
-else
-	log "no storage device - host key will not survive this boot"
+if [ -s "$STOREDKEY" ]; then
+	cp "$STOREDKEY" "$HOSTKEY"
+	log "host key taken from $KEYDIR"
 fi
 
 if [ -n "$DB" ]; then
@@ -150,6 +144,21 @@ if [ -n "$DB" ]; then
 		log "dropbear listening on $PORT"
 	else
 		log "dropbear NOT listening - see trace/dropbear.txt"
+	fi
+
+	# No stored key yet?  Make one now, for the next boot, with the server
+	# already up and the entropy pool seeded.  Nothing waits for this.
+	if [ ! -s "$STOREDKEY" ] && [ -f /tmp/usb-ready ]; then
+		(
+			mkdir -p "$KEYDIR" 2>/dev/null
+			if keygen "$STOREDKEY" >> "$LOG" 2>&1; then
+				sync
+				log "host key generated on $KEYDIR - in use from the next boot"
+			else
+				log "could not generate a host key"
+				rm -f "$STOREDKEY"
+			fi
+		) &
 	fi
 else
 	log "no dropbear binary - SSH skipped"
