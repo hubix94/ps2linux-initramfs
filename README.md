@@ -22,6 +22,9 @@ from `make modules_install`.
   driver, waits for carrier, takes a DHCP lease and starts SSH on port 2222.
   A missing cable does not stall the boot. `/mnt/network.conf` on the storage
   device overrides DHCP with a static address.
+- `etc/init.d/ntp.sh` - sets the clock from a time server once the network is
+  up. The RTC battery is dead on this console, so every boot starts at the
+  epoch and there is nothing local to fall back on.
 - `usr/share/udhcpc/default.script` - applies the lease. Without it udhcpc
   obtains an address and does nothing with it, which is the usual surprise
   when using BusyBox as a DHCP client.

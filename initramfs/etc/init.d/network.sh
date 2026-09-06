@@ -113,4 +113,8 @@ fi
 
 echo "network: $ADDR, ssh -p $PORT root@${ADDR%/*} (empty password)" > /dev/console 2>/dev/null
 
+# The clock comes last, and in the background: SSH must not wait for a time
+# server, and a machine with the wrong date is still a usable machine.
+/etc/init.d/ntp.sh &
+
 log "done"
