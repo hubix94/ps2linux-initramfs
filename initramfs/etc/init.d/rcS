@@ -1,0 +1,132 @@
+#!/bin/sh
+#
+# Order matters: ohci-ps2 is the USB controller on the IOP side, so it needs
+# sif and the whole iop-* family loaded first.  That is why USB cannot be
+# moved ahead of them, and why nobody tried.
+#
+# ASCII only on purpose - the console font is CP437.
+
+TRACE=/tmp/trace
+mkdir -p "$TRACE"
+stage() { echo "$1" >> "$TRACE/rcs-stages.txt"; }
+
+stage "rcS: start"
+
+depmod
+stage "rcS: depmod"
+
+# ps2fb is wrapped in a timeout because it is the one module whose failure
+# takes the screen with it - and then there is no way to see that anything
+# went wrong.  Without this, a hang here stops the WHOLE rcS, so USB never
+# comes up.
+#
+# Caveat: timeout kills a userspace process.  If the kernel gets stuck inside
+# module init in an uninterruptible state, this does not help.
+if timeout 25 modprobe ps2fb mode_option=640x512i@50; then
+	stage "rcS: ps2fb ok"
+else
+	stage "rcS: ps2fb FAILED (code $?)"
+fi
+
+modprobe sif
+stage "rcS: sif"
+modprobe iop-memory
+modprobe iop-heap
+modprobe iop-module
+modprobe iop-irq
+modprobe iop-dev9
+modprobe iop-registers
+stage "rcS: iop-*"
+
+# --- network ----------------------------------------------------------------
+#
+# The SMAP driver needs the expansion bay powered by iop-dev9, hence only
+# here.  In the background, because a missing cable must not stall the boot:
+# the script waits 20 s for carrier and exits quietly if there is none.
+/etc/init.d/network.sh &
+stage "rcS: network in background"
+
+modprobe usb-common
+modprobe usbcore
+modprobe hid
+modprobe usbhid
+modprobe hid-generic
+modprobe ums-usbat
+modprobe sd_mod
+stage "rcS: usb modules"
+modprobe ohci-ps2
+stage "rcS: ohci-ps2"
+
+# --- boot autolog -----------------------------------------------------------
+#
+# Every boot leaves its own autolog/boot-N directory on the storage device
+# with dmesg, the module list and the rcS stages.  Nothing has to be copied
+# by hand afterwards: if something breaks, the trace is already there, and if
+# nothing breaks, we have a reference to compare the next boot against.
+#
+# The dump runs 40 s after mounting so that USB, keyboard, clock and network
+# messages have all arrived - otherwise we would catch dmesg halfway through
+# the boot, and the interesting SMAP lines come last.
+
+autolog_boot() {
+	sleep 40
+
+	dest=/mnt/autolog
+	mkdir -p "$dest" 2>/dev/null || return 1
+	n=1
+	while [ -d "$dest/boot-$n" ]; do
+		n=$((n + 1))
+	done
+	run="$dest/boot-$n"
+	mkdir -p "$run" || return 1
+
+	dmesg > "$run/dmesg.txt" 2>&1
+	lsmod > "$run/lsmod.txt" 2>&1
+	uname -a > "$run/uname.txt" 2>&1
+	cat /proc/interrupts > "$run/interrupts.txt" 2>&1
+	cp "$TRACE"/*.txt "$run/" 2>/dev/null
+	date > "$run/date.txt" 2>&1
+	sync
+
+	stage "rcS: boot autolog in autolog/boot-$n"
+}
+
+# --- automatic mount of the USB storage device -------------------------------
+#
+# The device shows up several seconds AFTER rcS finishes - the USB stack is
+# only coming up by then.  So the waiting goes into the background: the shell
+# must appear at once, and the storage arrives on its own.
+#
+# Mount with an explicit -t vfat.  A bare "mount" tries the types listed in
+# /proc/filesystems in turn, and every type other than vfat bounces off the
+# exclusive open of the device and prints "Can't open blockdev" to the
+# console.
+#
+# /tmp/usb-ready is the flag for scripts: the device is mounted.
+# /tmp/usb-failed means it is not there - which is information too.
+
+mount_usb() {
+	i=0
+	while [ "$i" -lt 40 ]; do
+		for d in /dev/sda1 /dev/sdb1 /dev/sda /dev/sdb; do
+			if [ -b "$d" ]; then
+				if mount -t vfat "$d" /mnt 2>/dev/null; then
+					echo "$d" > /tmp/usb-ready
+					stage "rcS: storage $d mounted on /mnt"
+					autolog_boot &
+					return 0
+				fi
+			fi
+		done
+		sleep 1
+		i=$((i + 1))
+	done
+
+	echo "no storage device found in 40 s" > /tmp/usb-failed
+	stage "rcS: storage NOT found"
+	return 1
+}
+
+mount_usb &
+
+stage "rcS: end of rcS"

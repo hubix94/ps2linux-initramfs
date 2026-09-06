@@ -1,0 +1,45 @@
+#!/bin/sh
+#
+# default.script - lease handler for BusyBox udhcpc.
+#
+# Without this file udhcpc obtains a lease and does NOTHING with it, so the
+# interface stays unconfigured.  Called by udhcpc with the event in $1 and the
+# lease in the environment: interface, ip, mask (prefix length), subnet,
+# broadcast, router, dns, domain, lease.
+#
+# ASCII only on purpose - the console font is CP437.
+
+[ -n "$1" ] || { echo "default.script: must be run by udhcpc"; exit 1; }
+
+RESOLV=/etc/resolv.conf
+
+case "$1" in
+	deconfig)
+		ip addr flush dev "$interface" 2>/dev/null
+		ip link set dev "$interface" up
+		;;
+
+	bound|renew)
+		ip addr flush dev "$interface" 2>/dev/null
+		ip addr add "$ip/$mask" broadcast "${broadcast:-+}" dev "$interface"
+		if [ -n "$router" ]; then
+			ip route del default 2>/dev/null
+			for r in $router; do
+				ip route add default via "$r" dev "$interface"
+				break
+			done
+		fi
+		: > "$RESOLV"
+		[ -n "$domain" ] && echo "search $domain" >> "$RESOLV"
+		for d in $dns; do
+			echo "nameserver $d" >> "$RESOLV"
+		done
+		echo "udhcpc: $1: $interface -> $ip/$mask, gateway ${router:-none}, dns ${dns:-none}, lease ${lease:-?} s"
+		;;
+
+	leasefail|nak)
+		echo "udhcpc: $1 ${message:-}"
+		;;
+esac
+
+exit 0

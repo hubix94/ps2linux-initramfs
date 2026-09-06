@@ -1,0 +1,17 @@
+# Confer fstab(5). Fields:
+#
+# <fs_spec> <fs_file> <fs_vfstype> <fs_mntops> <fs_freq> <fs_passno>
+#
+# The fs_passno field is used by fsck(8) to determine the order in which
+# filesystem checks are done at boot time. The root filesystem should be
+# specified with a fs_passno of 1. Other filesystems should have a
+# fs_passno of 2. Filesystems within a drive will be checked sequentially,
+# but filesystems on different drives will be checked at the same time to
+# utilize parallelism available in the hardware. Defaults to zero (don’t
+# check the filesystem) if not present.
+
+sysfs			/sys			sysfs	defaults 0 0
+tmpfs			/tmp			tmpfs	defaults 0 0
+proc			/proc			proc	defaults 0 0
+devpts			/dev/pts		devpts	defaults 0 0
+debugfs			/sys/kernel/debug	debugfs	defaults 0 0

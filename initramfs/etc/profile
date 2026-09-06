@@ -1,0 +1,21 @@
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+
+# Strefa czasowa. /etc/localtime wystarcza dla samego busyboxa, ale zmienna
+# TZ jest tansza i dziala takze wtedy, gdy statyczna libc nie siega po plik.
+export TZ=CET-1CEST,M3.5.0/2,M10.5.0/3
+
+# Reset atrybutow tekstu przy kazdym logowaniu.
+#
+# Uwaga na zakres: konsola na ps2fb zglasza sie jako MONO, a w trybie mono
+# build_attr() w drivers/tty/vt/vt.c odrzuca kolor i zostawia sam wektor bitow
+# jasnosc/podkreslenie/negatyw/miganie. Ta linia NIE naprawi wiec zlego koloru
+# liter - kolor w tym trybie i tak nie dziala. Naprawia natomiast zablokowana
+# jasnosc, podkreslenie albo negatyw, ktore potrafi zostawic zabladzona
+# sekwencja ucieczki z wypisanego binarnego pliku.
+echo -e "\e[0m"
+
+# Blinking block cursor for more visibility.
+echo -e "\e[?6c"
+
+grep machine </proc/cpuinfo | sed 's/[[:space:]]\+//'
+uname -a
