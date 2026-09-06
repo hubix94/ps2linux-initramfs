@@ -29,6 +29,10 @@ case "$1" in
 				break
 			done
 		fi
+		# Time servers, if the DHCP server offers any (option 42).  Read
+		# back by /etc/init.d/ntp.sh, which falls back to a public pool.
+		[ -n "$ntpsrv" ] && echo "$ntpsrv" > /etc/ntpservers
+
 		: > "$RESOLV"
 		[ -n "$domain" ] && echo "search $domain" >> "$RESOLV"
 		for d in $dns; do
