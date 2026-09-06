@@ -179,7 +179,7 @@ grab ip-route.txt ip route
 echo
 if [ -n "$IP" ]; then
 	say "GOTOWE - adres $IP, dziala $UZYTY"
-	say "SSH:  ssh -p 2222 root@${IP%/*}   (puste haslo)"
+	say "SSH:  ssh root@${IP%/*}   (puste haslo)"
 else
 	say "modul wstal, ale adresu nie ma - sprobuj recznie:"
 	say "    udhcpc -i $IFACE -s $DHCP -n -q"

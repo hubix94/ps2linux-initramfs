@@ -17,13 +17,11 @@
 #   insmod /mnt/ps2-smap.ko poll=0      # tylko przerwania, bez ratunku
 #
 # WERSJA 3. Kroki:
-# PORT SSH TO 2222, NIE 22. Na porcie 22 siedzi inetd (inittab uruchamia go
-# przy starcie), a jego wpis w /etc/inetd.conf kieruje polaczenia na
-# "dropbear -i -s -g" - bez kluczy hosta, z zakazem logowania haslem i bez
-# /root/.ssh/authorized_keys. Taki dropbear konczy sie, zanim wysle powitanie,
-# wiec z zewnatrz widac tylko zerwane polaczenie. Wersja 2 tego skryptu
-# sprawdzala jedynie, czy COKOLWIEK nasluchuje na 22, i przez to melduje
-# sukces, choc jej wlasny dropbear nie mogl zajac portu i konczyl prace.
+# PORT SSH TO 22. Wczesniej bylo 2222, bo port 22 trzymal inetd, ktory przy
+# kazdym polaczeniu odpalal "dropbear -i -s -g" - bez klucza hosta, z zakazem
+# logowania haslem i z zakazem tego dla roota. Taki dropbear konczyl sie przed
+# powitaniem, wiec z zewnatrz widac bylo zerwane polaczenie. Wpis usuniety z
+# /etc/inetd.conf, inetd nie jest juz uruchamiany, port 22 jest nasz.
 #
 # Po wywrotce jadra (Oops) modul zostaje na zawsze w stanie "Loading" -
 # kolejny insmod w tej samej sesji tylko zawisa i marnuje przebieg. Skrypt
@@ -34,7 +32,7 @@
 #   3. ip link set eth0 up, czekanie na link (autonegocjacja 1-3 s)
 #   4. udhcpc z naszym skryptem -> adres, brama, DNS
 #   5. ping do bramy i do 1.1.1.1, liczniki
-#   6. dropbear (SSH) NA PORCIE 2222 - root bez hasla
+#   6. dropbear (SSH) NA PORCIE 22 - root bez hasla
 #   7. watchdog sieci w tle (ps2net-watchdog.sh)
 #
 # Zapis na biezaco na pendrive, jak w ps2net1.sh. Pendrive zostaje
@@ -50,7 +48,7 @@ PENDRIVE=/mnt
 MODUL=ps2-smap
 IFACE=eth0
 DHCP_SCRIPT=$PENDRIVE/scripts/udhcpc.sh
-SSH_PORT=2222
+SSH_PORT=22
 
 say() { echo ">>> $*"; }
 
@@ -289,7 +287,7 @@ if [ -n "$DB" ] && [ -n "$IP" ]; then
 	#     natychmiast nawet na 294 MHz)
 	# -B: pozwol na logowanie bez hasla (root ma puste haslo w /etc/passwd)
 	# -E: log na stderr
-	# -p: port 2222, bo 22 nalezy do inetd - patrz naglowek
+	# -p: port 22 - patrz naglowek
 	#
 	# Log idzie do /tmp, NIE na pendrive: dropbear zyje po zakonczeniu
 	# skryptu i trzymalby otwarty plik na vfat, ktory potem sie odmontowuje.

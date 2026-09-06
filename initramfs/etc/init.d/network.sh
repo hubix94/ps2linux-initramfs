@@ -3,7 +3,7 @@
 # network.sh - bring the network up at boot, the way every other Linux does.
 #
 # A plugged cable is meant to be enough: the driver loads itself, address,
-# gateway and DNS come from DHCP, SSH listens on port 2222.  Nobody types
+# gateway and DNS come from DHCP, SSH listens on port 22.  Nobody types
 # anything.
 #
 # The ordering is forced by the hardware: the SMAP driver needs the expansion
@@ -20,7 +20,7 @@
 # ASCII only on purpose - the console font is CP437.
 
 IFACE=eth0
-PORT=2222
+PORT=22
 TRACE=/tmp/trace
 mkdir -p "$TRACE"
 LOG="$TRACE/network.txt"
@@ -89,8 +89,8 @@ log "address $ADDR"
 
 # --- SSH ---------------------------------------------------------------------
 #
-# Port 2222, because 22 belongs to inetd.  -R generates host keys on the first
-# connection, -B allows root in with an empty password.
+# Port 22, since nothing else holds it any more.  -B allows root in with an
+# empty password, which is how this console is set up.
 
 DB=""
 for f in /usr/sbin/dropbear /usr/bin/dropbear /sbin/dropbear; do

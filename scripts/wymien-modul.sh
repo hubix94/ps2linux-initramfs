@@ -19,7 +19,7 @@ set -u
 KO=${1:-work/smap/ps2-smap.ko}
 IP=${2:-192.168.1.47}
 PARAM=${3:-}
-PORT=2222
+PORT=22
 ZDALNY=/mnt/scripts/przeladuj-zdalnie.sh
 
 [ -f "$KO" ] || { echo "BLAD: brak $KO"; exit 1; }
