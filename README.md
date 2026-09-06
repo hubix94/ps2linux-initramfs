@@ -29,6 +29,10 @@ from `make modules_install`.
   obtains an address and does nothing with it, which is the usual surprise
   when using BusyBox as a DHCP client.
 
+The storage device also holds the two pieces of state that have to outlive a
+boot: the SSH host key, so clients do not see a different host every time, and
+the shell history. Everything else is a tmpfs and goes away with the power.
+
 Boot leaves a trace in `/tmp/trace/` and, once the storage device is mounted,
 copies it to `autolog/boot-N/` there, together with `dmesg` and the module
 list. Nothing has to be collected by hand afterwards.
