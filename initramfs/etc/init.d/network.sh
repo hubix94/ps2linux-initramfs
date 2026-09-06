@@ -98,9 +98,53 @@ for f in /usr/sbin/dropbear /usr/bin/dropbear /sbin/dropbear; do
 done
 [ -z "$DB" ] && [ -x /usr/bin/dropbearmulti ] && DB="/usr/bin/dropbearmulti dropbear"
 
+# Host key on the storage device.  The root filesystem is a tmpfs, so a key
+# generated here would be new on every boot and every client would complain
+# that the host had changed.  Keep one on the storage device instead and copy
+# it in.  ed25519 only: RSA key generation takes minutes on a 294 MHz R5900,
+# and nothing here needs it.
+#
+# The key ends up on a FAT filesystem, so it carries no permissions and
+# anyone holding the storage device can read it.  With root logging in over
+# SSH without a password, which is how this console is set up, that changes
+# nothing.
+KEYDIR=/mnt/ssh
+HOSTKEY=/etc/dropbear/dropbear_ed25519_host_key
+
+keygen() {
+	if command -v dropbearkey > /dev/null 2>&1; then
+		dropbearkey -t ed25519 -f "$1"
+	elif [ -x /usr/bin/dropbearmulti ]; then
+		/usr/bin/dropbearmulti dropbearkey -t ed25519 -f "$1"
+	else
+		return 1
+	fi
+}
+
+mkdir -p /etc/dropbear
+
+if [ -f /tmp/usb-ready ]; then
+	mkdir -p "$KEYDIR" 2>/dev/null
+	if [ ! -s "$KEYDIR/dropbear_ed25519_host_key" ]; then
+		if keygen "$KEYDIR/dropbear_ed25519_host_key" >> "$LOG" 2>&1; then
+			log "generated a new host key on $KEYDIR"
+		else
+			log "no way to generate a host key - dropbear will make its own"
+		fi
+		sync
+	fi
+	if [ -s "$KEYDIR/dropbear_ed25519_host_key" ]; then
+		cp "$KEYDIR/dropbear_ed25519_host_key" "$HOSTKEY"
+		log "host key taken from $KEYDIR"
+	fi
+else
+	log "no storage device - host key will not survive this boot"
+fi
+
 if [ -n "$DB" ]; then
-	mkdir -p /etc/dropbear
-	$DB -R -B -E -p "$PORT" 2>> "$TRACE/dropbear.txt" &
+	# -r names the key to use; -R would generate a throwaway one on demand.
+	[ -s "$HOSTKEY" ] && DB_KEY="-r $HOSTKEY" || DB_KEY="-R"
+	$DB $DB_KEY -B -E -p "$PORT" 2>> "$TRACE/dropbear.txt" &
 	sleep 2
 	if netstat -ltn 2>/dev/null | grep -q ":$PORT "; then
 		log "dropbear listening on $PORT"

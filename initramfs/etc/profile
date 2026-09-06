@@ -4,6 +4,14 @@ export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 # TZ jest tansza i dziala takze wtedy, gdy statyczna libc nie siega po plik.
 export TZ=CET-1CEST,M3.5.0/2,M10.5.0/3
 
+# Shell history on the storage device.  Everything else here lives in a tmpfs
+# and goes away with the power, which makes the history useless exactly when
+# it would be worth having - after something went wrong.
+if grep -q " /mnt " /proc/mounts 2>/dev/null; then
+	export HISTFILE=/mnt/ash_history
+	export HISTFILESIZE=2000
+fi
+
 # Reset atrybutow tekstu przy kazdym logowaniu.
 #
 # Uwaga na zakres: konsola na ps2fb zglasza sie jako MONO, a w trybie mono
